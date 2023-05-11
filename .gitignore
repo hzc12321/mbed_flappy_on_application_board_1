@@ -1,0 +1,14 @@
+.build
+.mbed
+projectfiles
+*.py*
+mbed-os
+BUILD
+
+compile_commands.json
+.clangd
+.cache
+PinDetect
+mbed-rtos
+C12832_lcd
+USBHost
