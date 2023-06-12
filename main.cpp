@@ -1,15 +1,26 @@
-#include "mbed.h"
 #include "C12832_lcd.h"
 #include "PinDetect.h" //for the click button
+#include "mbed.h"
+
 // to change uLCD to 12832LCD using library C12832_lcd
 C12832_LCD uLCD; // create a global lcd object
 // to change storing audio clips in flash and play from flash
 // https://os.mbed.com/users/4180_1/notebook/using-flash-to-play-audio-clips/
+#include "LM75B.h"
 #include "sfx_die_16000.h"
 #include "sfx_hit_16000.h"
 #include "sfx_point_16000.h"
+
+// ntp and ethernet library
+#include "EthernetInterface.h"
+// #include "NTPClient.h"
+EthernetInterface eth;
+// NTPClient ntp;
+
 #define sample_freq 16000.0
 Ticker sampletick;
+
+BusOut display(p9, p10, p12, p13, p15, p16, p17, p18);
 // to change pin number to suit the application board
 PwmOut speaker(p26);
 PinDetect pb1(p14);
@@ -18,6 +29,10 @@ PinDetect pb1(p14);
 DigitalOut redLed(p23);
 DigitalOut greenLed(p24);
 DigitalOut blueLed(p25);
+
+// Display surrouding temperature
+LM75B sensor(p28, p27);
+Serial pc(USBTX, USBRX);
 
 // Potentiometer to change gameplay speed
 AnalogIn potentiometer(p20);
@@ -41,6 +56,12 @@ int ballrad = 2;
 int volatile ballVel = 1;
 
 int remainingLife;
+
+// Sun's position
+int sunX = 40;
+int sunY = 6;
+int sunRadius = 4;
+;
 
 enum gameState { beginn, playing, over };
 
@@ -127,7 +148,53 @@ void showRemainingLife() {
   wait_ms(500);
 }
 
+void updateDisplay(int score) {
+  if (score >= 0 && score <= 9) {
+    switch (score) {
+    case 0:
+      display = 0x3F; // display 0
+      break;
+    case 1:
+      display = 0x06; // display 1
+      break;
+    case 2:
+      display = 0x5B; // display 2
+      break;
+    case 3:
+      display = 0x4F; // display 3
+      break;
+    case 4:
+      display = 0x66; // display 4
+      break;
+    case 5:
+      display = 0x6D; // display 5
+      break;
+    case 6:
+      display = 0x7D; // display 6
+      break;
+    case 7:
+      display = 0x07; // display 7
+      break;
+    case 8:
+      display = 0x7F; // display 8
+      break;
+    case 9:
+      display = 0x6F; // display 9
+      break;
+    }
+  } else {
+    display = 0x00; // turn off all segments
+  }
+}
+
 int main() {
+
+  //   const char *ip = "192.168.1.2";
+  //   const char *mask = "255.255.255.0";
+  //   const char *gateway = "192.168.1.1";
+  //   eth.set_network(ip, mask, gateway);
+
+  set_time(1686648600);
 
   int wallHit = 0;
 
@@ -151,14 +218,24 @@ int main() {
     switch (state) {
     case beginn:
       uLCD.cls();
-      uLCD.locate(4, 2);
+      uLCD.locate(4, 0);
       uLCD.printf("Flappy mbed");
 
-      uLCD.locate(30, 16);
+      uLCD.locate(30, 10);
       uLCD.printf("Press to Start");
+      uLCD.locate(75, 0);
+      uLCD.printf("Temp:%.2f\n", sensor.read());
+      uLCD.locate(9, 20); // time location
+      //   if (ntp.setTime("0.pool.ntp.org") == 0) {
+      time_t ctTime;
+      ctTime = time(NULL);
+      uLCD.printf("%s\r\n", ctime(&ctTime));
+      //   }
+
       uLCD.copy_to_lcd();
       ready = 0;
       score = 0;
+      updateDisplay(score);
 
       remainingLife = 3;
       showRemainingLife();
@@ -185,17 +262,20 @@ int main() {
         uLCD.cls();
         uLCD.locate(14, 0);
         uLCD.printf("%04d", score);
+        updateDisplay(score);
         uLCD.locate(45, 16);
         uLCD.printf("Ready");
         uLCD.fillcircle(ballxpos, ballypos, ballrad, 1);
         uLCD.fillrect(wall1x1, wall1y1, wall1x2, wall1y2, 1);
         uLCD.fillrect(wall2x1, wall2y1, wall2x2, wall2y2, 1);
+
         uLCD.copy_to_lcd();
         ready = 1;
         wait_us(1000000);
         uLCD.cls();
         uLCD.locate(14, 0);
         uLCD.printf("%04d", score);
+        updateDisplay(score);
         uLCD.locate(50, 16);
         uLCD.printf("Go!");
         uLCD.fillcircle(ballxpos, ballypos, ballrad, 1);
@@ -209,6 +289,12 @@ int main() {
       wall2x1--;
       wall1x2--;
       wall2x2--;
+
+      // Update Sun's position
+      sunX--;
+      if (sunX < -sunRadius) {
+        sunX = 128;
+      }
       if (wall1x2 < -1) {
         wall1x2 = 148;
         wall1x1 = 128;
@@ -224,14 +310,21 @@ int main() {
         uLCD.cls();
         uLCD.locate(14, 0);
         uLCD.printf("%04d", score);
+        updateDisplay(score);
         uLCD.copy_to_lcd();
         scoreWrite = 0;
       }
       uLCD.cls();
       uLCD.locate(14, 0);
       uLCD.printf("%04d", score);
+      updateDisplay(score);
       uLCD.fillrect(wall1x1, wall1y1, wall1x2, wall1y2, 1);
       uLCD.fillrect(wall2x1, wall2y1, wall2x2, wall2y2, 1);
+      // Draw a Sun if temperature > 40.0
+      if (sensor.read() > 40.0) {
+        uLCD.fillcircle(sunX, sunY, sunRadius, 1);
+      }
+
       uLCD.copy_to_lcd();
 
       if (ballxpos == (wall1x1 + 10)) {
@@ -239,6 +332,7 @@ int main() {
         score++;
         uLCD.locate(14, 0);
         uLCD.printf("%04d", score);
+        updateDisplay(score);
         uLCD.copy_to_lcd();
       }
       uLCD.fillcircle(ballxpos, ballypos, ballrad, 1);
@@ -281,15 +375,36 @@ int main() {
         state = over;
       }
 
+      // game is over if touch the Sun
+      if (sensor.read() > 40.0 && ballxpos + ballrad >= sunX - sunRadius &&
+          ballxpos - ballrad <= sunX + sunRadius &&
+          ballypos - ballrad <= sunY + sunRadius) {
+
+        state = over;
+      }
+
       break;
 
     case over:
       if (ready) {
         Thread::wait(300);
-        uLCD.locate(40, 16);
-        uLCD.printf("Game Over");
+        // uLCD.locate(40, 16);
+        // uLCD.printf("Game Over");
         uLCD.locate(14, 0);
         uLCD.printf("%04d", score);
+        updateDisplay(score);
+        // uLCD.locate(40,16);
+        if (sensor.read() < 40.0) {
+          uLCD.locate(40, 13);
+          uLCD.printf("Game Over");
+          uLCD.locate(80, 2);
+          uLCD.printf("T: %.2f\n", sensor.read());
+        } else {
+          uLCD.locate(21, 14);
+          uLCD.printf("Game Over (Overheat!)");
+          uLCD.locate(80, 0);
+          uLCD.printf("T: %.1f\n", sensor.read());
+        }
         uLCD.copy_to_lcd();
         thread2.signal_set(0x1);
         wait_us(300000);

@@ -12,3 +12,5 @@ PinDetect
 mbed-rtos
 C12832_lcd
 USBHost
+LM75B
+NTPClient
