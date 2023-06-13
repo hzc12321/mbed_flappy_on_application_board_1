@@ -23,7 +23,7 @@ Ticker sampletick;
 BusOut display(p9, p10, p12, p13, p15, p16, p17, p18);
 // to change pin number to suit the application board
 PwmOut speaker(p26);
-PinDetect pb1(p14);
+PinDetect pushbutton1(p14);
 
 // Define RGB LED pins
 DigitalOut redLed(p23);
@@ -111,7 +111,7 @@ void playDeadSound(void const *argument) {
   }
 }
 
-void pb1_hit_callback() {
+void pushbutton1_button1HitHandler() {
 
   switch (state) {
   case beginn:
@@ -204,9 +204,9 @@ int main() {
 
   int ready = 0;
 
-  pb1.mode(PullDown);
-  pb1.attach_asserted(&pb1_hit_callback);
-  pb1.setSampleFrequency();
+  pushbutton1.mode(PullDown);
+  pushbutton1.attach_asserted(&pushbutton1_button1HitHandler);
+  pushbutton1.setSampleFrequency();
 
   uLCD.set_auto_up(0);
   uLCD.cls();
